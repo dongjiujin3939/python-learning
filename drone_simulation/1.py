@@ -35,12 +35,10 @@ class DroneControlSim:
             if self.pointer == 0:
                 self.drone_states[self.pointer,:] = 0
             else:
-                self.drone_states[self.pointer+1,:] = self.drone_states[self.pointer,:] + self.sim_step * drone_states[9]
+                self.drone_states[self.pointer+1,:] = self.drone_states[self.pointer,:] + self.sim_step * drone_states
 
-            attitude_cmd = [1,0,1]
-            self.attitude_cmd[self.pointer][0] = attitude_cmd[0]
-            self.attitude_cmd[self.pointer][1] = attitude_cmd[1]
-            self.attitude_cmd[self.pointer][2] = attitude_cmd[2]
+            attitude_cmd = [1,1,1]
+            self.attitude_cmd[self.pointer,[0,1,2]] = attitude_cmd
             rate_cmd = self.attitude_controller(attitude_cmd)
             Mq = self.rate_controller(rate_cmd)
             drone_states = self.drone_dynamics(self.thrust_cmd,Mq)
@@ -96,7 +94,7 @@ class DroneControlSim:
         # Output: M np.array (3,) moments
         
         error = 0
-        kp = 0.022
+        kp = 0.024
         error = cmd - self.drone_states[self.pointer,[9,10,11]]
         output_p = kp * error
         
@@ -104,92 +102,34 @@ class DroneControlSim:
         # print(M)
         return output_p
 
-        # pass
 
     def attitude_controller(self,cmd):
         # Input: cmd np.array (3,) attitude commands
         # Output: M np.array (3,) rate commands
 
-        kp_a = 1.0
-        ki_a = 0.1
-        kd_a = 0.2
+        # roll & pitch
+        kp = 1.0
         error = 0.0
-        integ = 0.0
-        roll_output = 0.0
-        pitch_output = 0.0
-        yaw_output = 0.0
-        if cmd[0] != 0:
-            count = 0
+        error = cmd[0] - self.drone_states[self.pointer,6]
+        roll_output = kp * error
+        error = cmd[1] - self.drone_states[self.pointer,7]
+        pitch_output = kp * error
+        # yaw
+        kp_y = 5.0
+        error= cmd[2] - self.drone_states[self.pointer,8]
+        yaw_output = kp_y * error
+        output = [roll_output,pitch_output,yaw_output]
+        self.rate_cmd[self.pointer,[0,1,2]] = output
+        return output
 
-            real = self.drone_states[self.pointer][count+6]
-            error = cmd[count]- real
-            output_p = kp_a * error
-            integ =integ + error * self.sim_step
-            # print(integ)
-            output_i = ki_a * integ
-            if self.pointer != 0 :
-                self.pointer -= 1
-                pre_real = self.drone_states[self.pointer][count+6]
-                deriv = (pre_real - real)/self.sim_step
-                output_d = kd_a * deriv
-            else :
-                output_d = 0
-            output = output_p + output_i + output_d
-            self.drone_states[self.pointer-1][count+6] = real
-
-            roll_output = output
-        if cmd[1] != 0:
-            count = 1
-
-            real = self.drone_states[self.pointer][count+6]
-            error = cmd[count]- real
-            output_p = kp_a * error
-            integ =integ + error * self.sim_step
-            output_i = ki_a * integ
-            if self.pointer != 0 :
-                self.pointer -= 1
-                pre_real = self.drone_states[self.pointer][count+6]
-                deriv = (pre_real - real)/self.sim_step
-                output_d = kd_a * deriv
-            else :
-                output_d = 0
-            output = output_p + output_i + output_d
-            self.drone_states[self.pointer-1][count+6] = real
-
-            pitch_output = output
-        if cmd[2] != 0:
-            count = 2
-            kp_a = 0.5
-            ki_a = 0.01
-            kd_a = 0.01
-
-            real = self.drone_states[self.pointer][count+6]
-            error = cmd[count]- real
-            output_p = kp_a * error
-            integ =integ + error * self.sim_step
-            output_i = ki_a * integ
-            
-            if self.pointer != 0 :
-                self.pointer -= 1
-                pre_real = self.drone_states[self.pointer][count+6]
-                deriv = (pre_real - real)/self.sim_step
-                output_d = kd_a * deriv
-            else :
-                output_d = 0
-            output = output_p + output_i + output_d
-            self.drone_states[self.pointer-1][count+6] = real
-            yaw_output = output
-        self.rate_cmd[self.pointer,0] = roll_output 
-        self.rate_cmd[self.pointer,1] = pitch_output
-        self.rate_cmd[self.pointer,2] = yaw_output  
-        rate_cmd = [roll_output,pitch_output,yaw_output]
-        return rate_cmd
-        # pass
 
     def velocity_controller(self,cmd):
         # Input: cmd np.array (3,) velocity commands
         # Output: M np.array (2,) phi and theta commands and thrust cmd
         pass
+
+
+
 
     def position_controller(self,cmd):
         # Input: cmd np.array (3,) position commands
