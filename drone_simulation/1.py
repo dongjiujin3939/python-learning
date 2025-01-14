@@ -29,8 +29,8 @@ class DroneControlSim:
         for self.pointer in range(self.drone_states.shape[0]-1): # 循环除最后一个状态的所有状态
             self.time[self.pointer] = self.pointer * self.sim_step # 存储当前时间
             # print(self.pointer)
-            thrust_cmd = 0.0 # 初始化升力
-            M = np.zeros((3,)) # 三轴力矩
+            # thrust_cmd = 0.0 # 初始化升力
+            # M = np.zeros((3,)) # 三轴力矩
 
             if self.pointer == 0:
                 self.drone_states[self.pointer,:] = 0
@@ -39,12 +39,19 @@ class DroneControlSim:
 
             position_cmd = [1,1,1]
             self.position_cmd[self.pointer,[0,1,2]] = position_cmd
+            # self.position_cmd[self.pointer,0] = self.sim_step * 0.001
+            # self.position_cmd[self.pointer,1] = 10 * sin((self.pointer + 2)/1000)
+            # self.position_cmd[self.pointer,2] = 10 * sin ((self.pointer + 2)/1000)
+            # velocity_cmd = self.position_controller(self.position_cmd[self.pointer,:])
+
+            # velocity_cmd = [1,1,1]
+            # self.velocity_cmd[self.pointer,:] = velocity_cmd
             velocity_cmd = self.position_controller(position_cmd)
             attitude_cmd = self.velocity_controller(velocity_cmd)
-            rate_cmd = self.attitude_controller(attitude_cmd)
-            Mq = self.rate_controller(rate_cmd)
-            self.thrust_cmd = attitude_cmd[2]
-            drone_states = self.drone_dynamics(self.thrust_cmd,Mq)
+            rate_cmd = self.attitude_controller(self.attitude_cmd[self.pointer,:])
+            M = self.rate_controller(rate_cmd)
+            _ , self.thrust_cmd = attitude_cmd
+            drone_states = self.drone_dynamics(self.thrust_cmd,M)
             # print(thrust_cmd)
 
 
@@ -118,11 +125,11 @@ class DroneControlSim:
         error = cmd[1] - self.drone_states[self.pointer,7]
         pitch_output = kp * error
         # yaw
-        kp_y = 4.0
+        kp_y = 2.0
         error= cmd[2] - self.drone_states[self.pointer,8]
         yaw_output = kp_y * error
         output = [roll_output,pitch_output,yaw_output]
-        self.rate_cmd[self.pointer,[0,1,2]] = output
+        self.rate_cmd[self.pointer,:] = output 
         return output
 
 
@@ -130,26 +137,25 @@ class DroneControlSim:
         # Input: cmd np.array (3,) velocity commands
         # Output: M np.array (2,) phi and theta commands and thrust cmd
         # pass
-        kp = 0.08
+        
+        kp_t = 3.0
         error = 0.0
-        error = cmd[0] - self.drone_states[self.pointer,3]
-        phi_output = kp * error
-        error = cmd[1] - self.drone_states[self.pointer,4]
-        theta_output = kp * error
-        kp_t = 1.0
-        error = cmd[2] - self.drone_states[self.pointer,5]
-        thrust_output = kp * error
-        output = [phi_output,theta_output,thrust_output]
-        self.attitude_cmd[self.pointer,[0,1]] = [phi_output,theta_output]
-        return output
-
-
+        error = cmd - self.drone_states[self.pointer,[3,4,5]]
+        thrust_output = (kp_t*error[2]-self.g) * self.m/(cos(self.drone_states[self.pointer,6]) * 
+                                                            cos(self.drone_states[self.pointer,7]) )
+        kp  = 0.8
+        phi_output = -(kp * error[1]) / (thrust_output * cos(self.drone_states[self.pointer,7]))
+        theta_output = (kp * error[0]) / thrust_output
+        attitude_cmd = np.array([phi_output,theta_output])
+        self.attitude_cmd[self.pointer,0:2] = attitude_cmd
+        return attitude_cmd , thrust_output
 
     def position_controller(self,cmd):
         # Input: cmd np.array (3,) position commands
         # Output: M np.array (3,) velocity commands
         # pass
-        kp = 0.8
+
+        kp = 0.75
         error = 0.0
         error = cmd - self.drone_states[self.pointer,[0,1,2]]
         output = kp * error
