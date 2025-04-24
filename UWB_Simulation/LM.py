@@ -35,7 +35,8 @@ class LM3DPositioning:
         residuals = []
         for (xi, yi, zi), di in zip(self.anchors, distance): 
             Ri = math.sqrt((x - xi)**2 + (y - yi)**2 + (z - zi)**2)
-            residuals.append(Ri - di)
+            residual = Ri - di
+            residuals.append(residual)
         return residuals
     # 计算雅可比矩阵
     def compute_jacobian(self, params):
@@ -81,7 +82,7 @@ class LM3DPositioning:
                 x[i] = (b[i] - sum(A[i][j] * x[j] for j in range(i + 1, n))) / A[i][i]
         return x
     # LM算法
-    def levenberg_marquardt(self, distance, init_params, max_iter = 100, lambda_init = 0.01, verbose = False):
+    def levenberg_marquardt(self, distance, init_params, max_iter = 1000, lambda_init = 0.1, verbose = False):
         params = init_params[:]
         lambd = lambda_init
         for iteration in range(max_iter):
@@ -106,11 +107,11 @@ class LM3DPositioning:
 
             if new_error < old_error: # 误差减小接受新参数
                 params = new_params
-                lambd *= 0.7  
+                lambd *= 0.8
             else: # 误差增大拒绝更新
                 lambd *= 2.0
             
-            if max(abs(d) for d in delta) < 1e-6:
+            if max(abs(d) for d in delta) < 1e-8:
                 break
             if verbose:
                 print(f"Iter {iteration + 1} : params = {params}, error = {new_error: .6f}")
