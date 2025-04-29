@@ -50,10 +50,10 @@ class Uwb_Simulation:
     def Distance_Measured(self, t):
         # uav 地系坐标
         radius = 4
-        omega = 0.2
+        omega = 0.23
         self.x_t = 5 + radius * math.cos(omega * t)
         self.y_t = 5 + radius * math.sin(omega * t)
-        self.z_t = 5.1 + 0.5 * math.sin(0.1 * t)
+        self.z_t = 5.1
         # ugv质心轨迹
         self.x0 = 0.2 + 0.1 * t
         self.y0 = 0.0 + math.sin(0.1 * t)
@@ -83,7 +83,7 @@ class Uwb_Simulation:
         # else:
         #     initial_guess = self.calculated_position[-1]
         initial_guess = [0.0, 0.0, 1.0]
-        estimated = lm.levenberg_marquardt(noisy_distances, initial_guess, verbose = True)
+        estimated = lm.levenberg_marquardt(noisy_distances, initial_guess, use_huber = True, delta = 0.3, verbose = True)
         # kalman filter
         if t == 0:
             self.kf.x[:3, 0] = estimated
@@ -91,7 +91,7 @@ class Uwb_Simulation:
         self.kf.update(estimated)
         filtered_estimate = self.kf.get_position()
         # print("Estimated Position:", estimated)
-        if t == 99:
+        if t == 199:
             lm.visualize_3d(estimated)
 
         self.time_step.append(t)
@@ -133,6 +133,7 @@ class Uwb_Simulation:
         ax2.set_ylabel('Error[m]')
         ax2.legend()
         ax2.grid(True)
+
 
         ax3 = fig.add_subplot(224)
         ax3.plot(time_steps, error_norm, label = 'Total Position Error(Norm)', color = 'purple')

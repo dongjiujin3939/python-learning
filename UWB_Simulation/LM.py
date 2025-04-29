@@ -1,5 +1,6 @@
 import math
 import random
+import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
@@ -81,14 +82,41 @@ class LM3DPositioning:
             for i in reversed(range(n)):
                 x[i] = (b[i] - sum(A[i][j] * x[j] for j in range(i + 1, n))) / A[i][i]
         return x
+    # huber 损失函数
+    def apply_huber_loss(self, residuals, delta = 1.0):
+        residuals = np.asarray(residuals, dtype= np.float64)
+        abs_r = np.abs(residuals)
+        weights = np.where(abs_r <= delta, 1.0, delta / (abs_r + 1e-8))
+        return weights
+    
+    def huber_loss(self, r, delta):
+        r = np.asarray(r, dtype = np.float64)
+        abs_r = np.abs(r)
+        loss = np.where(
+            abs_r <= delta,
+            0.5 * r**2,
+            delta * (abs_r - 0.5 * delta)
+        )
+        return loss
     # LM算法
-    def levenberg_marquardt(self, distance, init_params, max_iter = 1000, lambda_init = 0.1, verbose = False):
+    def levenberg_marquardt(self, distance, init_params, max_iter = 1000, lambda_init = 0.1, use_huber = True, delta = 0.1, verbose = False):
         params = init_params[:]
         lambd = lambda_init
         for iteration in range(max_iter):
             residuals = self.compute_residuals(distance, params)
-            J = self.compute_jacobian(params)
 
+            if use_huber:
+                weights = self.apply_huber_loss(residuals, delta)
+            else:
+                weights = [1.0] * len(residuals)
+            
+            weighted_residuals = [w * r for w, r in zip(weights, residuals)]
+
+            J = self.compute_jacobian(params)
+            for i in range(len(J)):
+                for j in range(3):
+                    J[i][j] *= weights[i]
+            
             JT = self.transpose(J)
             JTJ = self.mat_mul(JT, J)
 
@@ -98,20 +126,20 @@ class LM3DPositioning:
             JTr = self.mat_mul(JT, [[r] for r in residuals])
             JTr = [row[0] for row in JTr]
 
-            delta = self.solve_linear([row[:] for row in JTJ], [-v for v in JTr])
-            new_params = [p + d for p, d in zip(params, delta)]
+            delta_params = self.solve_linear([row[:] for row in JTJ], [-v for v in JTr])
+            new_params = [p + d for p, d in zip(params, delta_params)]
             new_residuals = self.compute_residuals(distance, new_params)
 
-            old_error = sum(r**2 for r in residuals)
-            new_error = sum(r**2 for r in new_residuals)
+            old_error = sum(self.huber_loss(residuals, delta))
+            new_error = sum(self.huber_loss(new_residuals, delta))
 
             if new_error < old_error: # 误差减小接受新参数
                 params = new_params
-                lambd *= 0.8
+                lambd *= 0.85
             else: # 误差增大拒绝更新
                 lambd *= 2.0
             
-            if max(abs(d) for d in delta) < 1e-8:
+            if max(abs(d) for d in delta_params) < 1e-8:
                 break
             if verbose:
                 print(f"Iter {iteration + 1} : params = {params}, error = {new_error: .6f}")
