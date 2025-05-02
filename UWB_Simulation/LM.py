@@ -99,7 +99,7 @@ class LM3DPositioning:
         )
         return loss
     # LM算法
-    def levenberg_marquardt(self, distance, init_params, max_iter = 1000, lambda_init = 0.1, use_huber = True, delta = 0.1, verbose = False):
+    def levenberg_marquardt(self, distance, init_params, max_iter = 1000, lambda_init = 1.0, use_huber = False, delta = 0.1, verbose = False):
         params = init_params[:]
         lambd = lambda_init
         for iteration in range(max_iter):
@@ -135,7 +135,7 @@ class LM3DPositioning:
 
             if new_error < old_error: # 误差减小接受新参数
                 params = new_params
-                lambd *= 0.85
+                lambd *= 0.7
             else: # 误差增大拒绝更新
                 lambd *= 2.0
             
