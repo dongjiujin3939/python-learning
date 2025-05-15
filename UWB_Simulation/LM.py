@@ -99,7 +99,7 @@ class LM3DPositioning:
         )
         return loss
     # LM算法
-    def levenberg_marquardt(self, distance, init_params, max_iter = 1000, lambda_init = 1.0, use_huber = False, delta = 0.1, verbose = False):
+    def levenberg_marquardt(self, distance, init_params, max_iter = 1000, lambda_init = 0.001, use_huber = True, delta = 0.2, verbose = False):
         params = init_params[:]
         lambd = lambda_init
         for iteration in range(max_iter):
@@ -114,7 +114,7 @@ class LM3DPositioning:
 
             J = self.compute_jacobian(params)
             for i in range(len(J)):
-                for j in range(3):
+                for j in range(len(J[0])):
                     J[i][j] *= weights[i]
             
             JT = self.transpose(J)
@@ -123,7 +123,7 @@ class LM3DPositioning:
             for i in range(len(JTJ)):
                 JTJ[i][i] += lambd
 
-            JTr = self.mat_mul(JT, [[r] for r in residuals])
+            JTr = self.mat_mul(JT, [[r] for r in weighted_residuals])
             JTr = [row[0] for row in JTr]
 
             delta_params = self.solve_linear([row[:] for row in JTJ], [-v for v in JTr])
@@ -135,9 +135,10 @@ class LM3DPositioning:
 
             if new_error < old_error: # 误差减小接受新参数
                 params = new_params
-                lambd *= 0.7
+                # lambd *= max(0.1, 1 - (old_error - new_error) / old_error)
+                lambd *= 0.8
             else: # 误差增大拒绝更新
-                lambd *= 2.0
+                lambd *= 10.0
             
             if max(abs(d) for d in delta_params) < 1e-8:
                 break

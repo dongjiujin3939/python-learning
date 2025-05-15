@@ -1,7 +1,7 @@
 import numpy as np
 
 class ExtendKalmanFilter3D:
-    def __init__(self, dt, process_noise = 1e-2, measurement_noise = 1e-1):
+    def __init__(self, dt, process_noise = 1e-3, measurement_noise = 0.05):
         self.dt = dt
 
         self.x = np.zeros((6, 1))

@@ -19,11 +19,11 @@ class Uwb_Simulation:
         self.location_uwb1 = np.array([self.x1, self.y1, self.z1])
         self.x2 = 0
         self.y2 = -0.2
-        self.z2 = 0.1 
+        self.z2 = 0.1
         self.location_uwb2 = np.array([self.x2, self.y2, self.z2])
         self.x3 = 0.4
         self.y3 = -0.2
-        self.z3 = 0.42
+        self.z3 = 0.415
         self.location_uwb3 = np.array([self.x3, self.y3, self.z3])
         # uwb节点相对于小车质心的偏移量
         self.uwb1_offset = np.array([self.x1 - self.x0, self.y1 - self.y0, self.z1 - self.z0])
@@ -46,17 +46,17 @@ class Uwb_Simulation:
         self.calculated_position = []
         self.UGV_position = []
         self.filtered_position = []
+        self.distances = []
+        self.noisy_distances = []
     
     def Distance_Measured(self, t):
         # uav 地系坐标
-        radius = 4
-        omega = 0.2
-        self.x_t = 5 + radius * math.cos(omega * t)
-        self.y_t = 5 + radius * math.sin(omega * t)
+        self.x_t = 5 + 4 * math.cos(0.2 * t)
+        self.y_t = 5 + 2 * math.sin(0.2 * t)
         self.z_t = 5.1
         # ugv质心轨迹
         self.x0 = 0.2 + 0.1 * t
-        self.y0 = 0.0 + math.sin(0.1 * t)
+        self.y0 = 0.0 + 2 * math.sin(0.1 * t)
         self.z0 = 0.1
         self.location_ugv = np.array([self.x0, self.y0, self.z0])
         # 更新后的质心位置
@@ -64,7 +64,7 @@ class Uwb_Simulation:
         self.location_uwb2 = self.location_ugv + self.uwb2_offset
         self.location_uwb3 = self.location_ugv + self.uwb3_offset
         # 调用LM算法的最小二乘法
-        anchors = [
+        self.anchors = [
             self.location_uwb1,
             self.location_uwb2,
             self.location_uwb3
@@ -72,19 +72,23 @@ class Uwb_Simulation:
 
         true_pos = np.array([self.x_t, self.y_t, self.z_t])
         print("true_pos: ", true_pos)
-        diff = anchors - true_pos
+        diff = self.anchors - true_pos
         distances = np.linalg.norm(diff, axis=1)
         # 加入高斯噪声
-        noise_std_dev = 0.0
+        noise_std_dev = 0.1
         noise = np.random.normal(0, noise_std_dev, size = distances.shape)
         noisy_distances = distances + noise
-        lm = LM3DPositioning(anchors, true_pos)
-        if t == 0:
-            initial_guess = [0.0, 0.0, 0.1]
-        else:
-            initial_guess = self.calculated_position[-1]
-        # initial_guess = [1.0, 1.0, 1.0]
-        estimated = lm.levenberg_marquardt(noisy_distances, initial_guess, use_huber = False, delta = 0.1, verbose = False)
+        lm = LM3DPositioning(self.anchors, true_pos)
+        # if t == 0:
+        #     initial_guess = [4.5, 4.5, 5.0]
+        #     # initial_guess = np.mean(self.anchors, axis = 0)
+        # else:
+        #     initial_guess = self.calculated_position[-1]
+            # self.kf.predict()
+            # predicted_state = self.kf.x
+            # initial_guess = predicted_state[:3, 0]
+        initial_guess = [5.0, 5.0, 5.1]
+        estimated = lm.levenberg_marquardt(noisy_distances, initial_guess, use_huber = True, verbose = False)
         print("calculated_pos: ", estimated)
         # kalman filter
         if t == 0:
@@ -93,14 +97,16 @@ class Uwb_Simulation:
         self.kf.update(estimated)
         filtered_estimate = self.kf.get_position()
         
-        if t == 199:
-            lm.visualize_3d(estimated)
+        # if t == 199:
+            # lm.visualize_3d(estimated)
 
         self.time_step.append(t)
         self.true_position.append((self.x_t, self.y_t, self.z_t))
         self.calculated_position.append(tuple(estimated))
         self.UGV_position.append(self.location_ugv.copy())
         self.filtered_position.append(tuple(filtered_estimate))
+        self.distances.append(tuple(distances))
+        self.noisy_distances.append(tuple(noisy_distances))
 
     def plot_results(self):
         true_position = np.array(self.true_position)
@@ -108,6 +114,8 @@ class Uwb_Simulation:
         UGV_position = np.array(self.UGV_position)
         filter_position = np.array(self.filtered_position)
         time_steps = np.array(self.time_step)
+        distances = np.array(self.distances)
+        noisy_distances = np.array(self.noisy_distances)
         
         position_error = calculated_position - true_position
         error_norm = np.linalg.norm(position_error, axis=1)
@@ -117,8 +125,8 @@ class Uwb_Simulation:
         ax1 = fig.add_subplot(121, projection = '3d')
         ax1.plot(true_position[:, 0], true_position[:, 1], true_position[:, 2], color = 'orange', label = 'UAV Ground Truth')
         ax1.plot(calculated_position[:, 0], calculated_position[:, 1], calculated_position[:, 2], color = 'blue', linestyle = '--', label = 'Esitimated Position')
-        ax1.plot(UGV_position[:, 0], UGV_position[:, 1], UGV_position[:, 2])
-        # ax1.plot(filter_position[:, 0], filter_position[:, 1], filter_position[:, 2], label = 'KF Filtered', color = 'orange')
+        ax1.plot(UGV_position[:, 0], UGV_position[:, 1], UGV_position[:, 2], color = 'red')
+        # ax1.plot(filter_position[:, 0], filter_position[:, 1], filter_position[:, 2], label = 'KF Filtered', color = 'green')
         ax1.set_title('3D Trajectory of UAV and UGV')
         ax1.set_xlabel('X[m]')
         ax1.set_ylabel('Y[m]')
@@ -138,7 +146,9 @@ class Uwb_Simulation:
 
 
         ax3 = fig.add_subplot(224)
-        ax3.plot(time_steps, error_norm, label = 'Total Position Error(Norm)', color = 'purple')
+        # ax3.plot(time_steps, error_norm, label = 'Total Position Error(Norm)', color = 'purple')
+        ax3.plot(time_steps, distances[:, 0], label = 'Distance', color = 'blue')
+        ax3.plot(time_steps, noisy_distances[:, 0], label = 'Add noise distance', color = 'green')
         ax3.set_title('Position Error Magitude')
         ax3.set_xlabel('Time Step')
         ax3.set_ylabel('Euclidean Error[m]')
@@ -151,7 +161,7 @@ class Uwb_Simulation:
 
 if __name__ == "__main__":
     uwb = Uwb_Simulation()
-    for t in np.linspace(0, 200, 2000):
+    for t in np.linspace(0, 100, 100):
         uwb.Distance_Measured(t)
     uwb.plot_results()
 
